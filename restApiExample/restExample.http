@@ -1,0 +1,27 @@
+GET http://localhost:8080/api/posts
+
+###
+GET http://localhost:8080/api/posts/1
+
+###
+POST http://localhost:8080/api/posts
+Content-Type: application/json
+
+{
+  "author": "Michael Bury",
+  "title": "New Spring feature!!!"
+}
+
+###
+PUT http://localhost:8080/api/posts/3
+Content-Type: application/json
+
+{
+  "author": "Michael Bury",
+  "numberOfLikes": 5,
+  "numberOfDislikes": 1,
+  "title": "New Spring feature!!!"
+}
+
+###
+DELETE http://localhost:8080/api/posts/3

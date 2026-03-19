@@ -38,6 +38,15 @@ public class Post {
     public Post() {
     }
 
+    public Post(int id, String author, String title, LocalDateTime createdDate, int numberOfLikes, int numberOfDislikes) {
+        this.id = id;
+        this.author = author;
+        this.title = title;
+        this.createdDate = createdDate;
+        this.numberOfLikes = numberOfLikes;
+        this.numberOfDislikes = numberOfDislikes;
+    }
+
     public Post(String author, String title, LocalDateTime createdDate, int numberOfLikes, int numberOfDislikes) {
         this.author = author;
         this.title = title;

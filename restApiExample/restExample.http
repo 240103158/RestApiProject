@@ -1,7 +1,7 @@
 GET http://localhost:8080/api/posts
 
 ###
-GET http://localhost:8080/api/posts/1
+GET http://localhost:8080/api/posts/6
 
 ###
 POST http://localhost:8080/api/posts
@@ -13,7 +13,7 @@ Content-Type: application/json
 }
 
 ###
-PUT http://localhost:8080/api/posts/3
+PUT http://localhost:8080/api/posts/6
 Content-Type: application/json
 
 {

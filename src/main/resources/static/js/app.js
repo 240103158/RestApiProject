@@ -1,7 +1,3 @@
-// ============================================
-// BLOG POSTS FRONTEND - API Integration
-// ============================================
-
 // API Configuration
 const API_BASE_URL = '/api';
 let allPosts = [];
@@ -10,13 +6,10 @@ let isEditMode = false;
 let editingPostId = null;
 let currentUser = null;
 
-// ============================================
-// INITIALIZATION
-// ============================================
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('App initialized');
+    console.log('🚀 App initialized');
     checkAuthentication();
     loadPosts();
     setupEventListeners();
@@ -55,10 +48,31 @@ function checkAuthentication() {
     currentUser = localStorage.getItem('currentUser');
     
     if (!token) {
-        console.log('No authentication token found - user not authenticated');
+        console.log('ℹ️ No authentication token found - user not authenticated');
     } else {
-        console.log('User authenticated:', currentUser);
+        console.log('✅ User authenticated:', currentUser);
     }
+}
+
+
+// Handle API Response - Process exceptions from GlobalExceptionHandler
+function handleResponse(response) {
+    // If response is not ok, try to parse error from GlobalExceptionHandler
+    if (!response.ok) {
+        return response.json().then(errorData => {
+            // GlobalExceptionHandler returns: { status: number, message: string }
+            const errorMessage = errorData.message || `HTTP Error ${response.status}`;
+            const error = new Error(errorMessage);
+            error.status = errorData.status || response.status;
+            throw error;
+        }).catch(jsonError => {
+            // If JSON parsing fails, use generic error
+            const error = new Error(`HTTP Error ${response.status}: ${response.statusText}`);
+            error.status = response.status;
+            throw error;
+        });
+    }
+    return response.json();
 }
 
 // Load posts from API
@@ -66,24 +80,27 @@ function loadPosts() {
     showLoadingSpinner();
     hideErrorMessage();
 
-    fetch(`${API_BASE_URL}/posts`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            allPosts = data.posts || [];
-            displayPosts(allPosts);
-            hideLoadingSpinner();
-        })
-        .catch(error => {
-            console.error('Error loading posts:', error);
-            showErrorMessage('Failed to load posts. Please try again later.');
-            hideLoadingSpinner();
-            showEmptyState();
-        });
+    fetch(`${API_BASE_URL}/posts`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': getAuthHeader()
+        }
+    })
+    .then(response => handleResponse(response))
+    .then(data => {
+        console.log('✅ Posts loaded successfully:', data);
+        allPosts = data.posts || [];
+        displayPosts(allPosts);
+        hideLoadingSpinner();
+        hideErrorMessage();
+    })
+    .catch(error => {
+        console.error('❌ Error loading posts:', error);
+        hideLoadingSpinner();
+        showErrorMessage(error.message || 'Failed to load posts. Please try again later.');
+        showEmptyState();
+    });
 }
 
 // Display posts in the grid
@@ -114,6 +131,8 @@ function displayPosts(posts) {
             </div>
         </div>
     `).join('');
+    
+    console.log(`📊 Displayed ${posts.length} posts`);
 }
 
 // Filter and display posts based on search
@@ -128,7 +147,9 @@ function filterAndDisplayPosts(searchTerm) {
         return post.title.toLowerCase().includes(term) ||
                post.author.toLowerCase().includes(term);
     });
+    
     displayPosts(filteredPosts);
+    console.log(`🔍 Filtered to ${filteredPosts.length} posts`);
 }
 
 // Sort posts
@@ -158,7 +179,8 @@ function sortPosts() {
 function viewPost(postId) {
     const post = allPosts.find(p => p.id === postId);
     if (!post) {
-        console.error('Post not found:', postId);
+        console.error('❌ Post not found:', postId);
+        showAlert('Post not found', 'error');
         return;
     }
 
@@ -177,6 +199,7 @@ function viewPost(postId) {
     document.getElementById('deleteBtn').style.display = isOwnPost ? 'inline-flex' : 'none';
 
     document.getElementById('viewModal').classList.remove('hidden');
+    console.log('👁️ Viewing post:', postId);
 }
 
 // Close view modal
@@ -188,13 +211,13 @@ function closeViewModal() {
 // Like post
 function likePost() {
     if (!currentViewingPostId) {
-        showErrorMessage('No post selected');
+        showAlert('No post selected', 'error');
         return;
     }
 
     const post = allPosts.find(p => p.id === currentViewingPostId);
     if (!post) {
-        showErrorMessage('Post not found');
+        showAlert('Post not found', 'error');
         return;
     }
 
@@ -213,31 +236,29 @@ function likePost() {
         },
         body: JSON.stringify(payload)
     })
-    .then(response => {
-        if (!response.ok) throw new Error('Failed to like post');
-        return response.json();
-    })
+    .then(response => handleResponse(response))
     .then(updatedPost => {
         post.numberOfLikes = newLikes;
         document.getElementById('viewLikes').textContent = newLikes;
-        showNotification('Post liked! 👍');
+        showAlert('Post liked! 👍', 'success');
+        console.log('👍 Post liked successfully');
     })
     .catch(error => {
-        console.error('Error liking post:', error);
-        showErrorMessage('Failed to like post');
+        console.error('❌ Error liking post:', error);
+        showAlert(`Failed to like post: ${error.message}`, 'error');
     });
 }
 
 // Dislike post
 function dislikePost() {
     if (!currentViewingPostId) {
-        showErrorMessage('No post selected');
+        showAlert('No post selected', 'error');
         return;
     }
 
     const post = allPosts.find(p => p.id === currentViewingPostId);
     if (!post) {
-        showErrorMessage('Post not found');
+        showAlert('Post not found', 'error');
         return;
     }
 
@@ -256,30 +277,31 @@ function dislikePost() {
         },
         body: JSON.stringify(payload)
     })
-    .then(response => {
-        if (!response.ok) throw new Error('Failed to dislike post');
-        return response.json();
-    })
+    .then(response => handleResponse(response))
     .then(updatedPost => {
         post.numberOfDislikes = newDislikes;
         document.getElementById('viewDislikes').textContent = newDislikes;
-        showNotification('Post disliked! 👎');
+        showAlert('Post disliked! 👎', 'success');
+        console.log('👎 Post disliked successfully');
     })
     .catch(error => {
-        console.error('Error disliking post:', error);
-        showErrorMessage('Failed to dislike post');
+        console.error('❌ Error disliking post:', error);
+        showAlert(`Failed to dislike post: ${error.message}`, 'error');
     });
 }
 
 // Edit post
 function editPost() {
     const post = allPosts.find(p => p.id === currentViewingPostId);
-    if (!post) return;
+    if (!post) {
+        showAlert('Post not found', 'error');
+        return;
+    }
 
     isEditMode = true;
     editingPostId = currentViewingPostId;
 
-    document.getElementById('modalTitle').textContent = 'Edit Post';
+    document.getElementById('modalTitle').textContent = '✏️ Edit Post';
     document.getElementById('author').value = post.author;
     document.getElementById('title').value = post.title;
     
@@ -288,13 +310,17 @@ function editPost() {
 
     closeViewModal();
     document.getElementById('postModal').classList.remove('hidden');
+    clearFormError();
 }
 
 // Delete post
 function deletePost() {
-    if (!currentViewingPostId) return;
+    if (!currentViewingPostId) {
+        showAlert('No post selected', 'error');
+        return;
+    }
 
-    if (!confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+    if (!confirm('🗑️ Are you sure you want to delete this post? This action cannot be undone.')) {
         return;
     }
 
@@ -306,16 +332,23 @@ function deletePost() {
         }
     })
     .then(response => {
-        if (!response.ok) throw new Error('Failed to delete post');
-        
+        if (!response.ok) {
+            return response.json().then(errorData => {
+                throw new Error(errorData.message || `HTTP Error ${response.status}`);
+            });
+        }
+        return response;
+    })
+    .then(() => {
         allPosts = allPosts.filter(p => p.id !== currentViewingPostId);
         closeViewModal();
         displayPosts(allPosts);
-        showNotification('Post deleted successfully! 🗑️');
+        showAlert('Post deleted successfully! 🗑️', 'success');
+        console.log('🗑️ Post deleted');
     })
     .catch(error => {
-        console.error('Error deleting post:', error);
-        showErrorMessage('Failed to delete post');
+        console.error('❌ Error deleting post:', error);
+        showAlert(`Failed to delete post: ${error.message}`, 'error');
     });
 }
 
@@ -323,10 +356,11 @@ function deletePost() {
 function openCreateModal() {
     isEditMode = false;
     editingPostId = null;
-    document.getElementById('modalTitle').textContent = 'Create New Post';
+    document.getElementById('modalTitle').textContent = '✏️ Create New Post';
     document.getElementById('postForm').reset();
     document.getElementById('author').disabled = false;
     document.getElementById('author').style.opacity = '1';
+    clearFormError();
     
     // Set author from currentUser if available
     if (currentUser) {
@@ -342,48 +376,61 @@ function closeCreateModal() {
     document.getElementById('postForm').reset();
     isEditMode = false;
     editingPostId = null;
+    clearFormError();
 }
 
 // Submit post (create or update)
 function submitPost() {
     const author = document.getElementById('author').value.trim();
     const title = document.getElementById('title').value.trim();
+    const submitBtn = document.getElementById('submitBtn');
+
+    // Client-side validation
+    let errors = [];
 
     if (!author || !title) {
-        showErrorMessage('Please fill in all fields (Author and Title)');
+        errors.push('⚠️ Please fill in all fields (Author and Title)');
+    }
+
+    if (author && author.length > 20) {
+        errors.push('⚠️ Author name must be less than 20 characters');
+    }
+
+    if (title && title.length > 100) {
+        errors.push('⚠️ Title must be less than 100 characters');
+    }
+
+    if (errors.length > 0) {
+        showFormError(errors.join('\n'));
         return;
     }
 
-    if (author.length > 20) {
-        showErrorMessage('Author name must be less than 20 characters');
-        return;
-    }
-
-    if (title.length > 100) {
-        showErrorMessage('Title must be less than 100 characters');
-        return;
-    }
+    clearFormError();
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
 
     if (isEditMode) {
         const post = allPosts.find(p => p.id === editingPostId);
         if (!post) {
-            showErrorMessage('Post not found');
+            showFormError('❌ Post not found');
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('loading');
             return;
         }
-        updatePostTitle(editingPostId, title, post.numberOfLikes, post.numberOfDislikes);
+        updatePostTitle(editingPostId, title, post.numberOfLikes, post.numberOfDislikes, submitBtn);
     } else {
-        createNewPost(author, title);
+        createNewPost(author, title, submitBtn);
     }
 }
 
 // Create new post
-function createNewPost(author, title) {
+function createNewPost(author, title, submitBtn) {
     const payload = {
         author: author,
         title: title
     };
 
-    console.log('Creating post:', payload);
+    console.log('📝 Creating post:', payload);
 
     fetch(`${API_BASE_URL}/posts`, {
         method: 'POST',
@@ -393,35 +440,32 @@ function createNewPost(author, title) {
         },
         body: JSON.stringify(payload)
     })
-    .then(response => {
-        if (!response.ok) {
-            return response.text().then(text => {
-                throw new Error(`Failed to create post: ${text}`);
-            });
-        }
-        return response.json();
-    })
+    .then(response => handleResponse(response))
     .then(newPost => {
-        console.log('Post created successfully:', newPost);
+        console.log('✅ Post created successfully:', newPost);
         closeCreateModal();
         loadPosts();
-        showNotification('Post created successfully! ✨');
+        showAlert('🎉 Post created successfully!', 'success');
     })
     .catch(error => {
-        console.error('Error creating post:', error);
-        showErrorMessage(`Failed to create post: ${error.message}`);
+        console.error('❌ Error creating post:', error);
+        showFormError(`❌ Failed to create post: ${error.message}`);
+    })
+    .finally(() => {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('loading');
     });
 }
 
 // Update existing post title and stats
-function updatePostTitle(postId, title, numberOfLikes, numberOfDislikes) {
+function updatePostTitle(postId, title, numberOfLikes, numberOfDislikes, submitBtn) {
     const payload = {
         title: title,
         numberOfLikes: numberOfLikes,
         numberOfDislikes: numberOfDislikes
     };
 
-    console.log('Updating post:', postId, payload);
+    console.log('📝 Updating post:', postId, payload);
 
     fetch(`${API_BASE_URL}/posts/${postId}`, {
         method: 'PUT',
@@ -431,35 +475,35 @@ function updatePostTitle(postId, title, numberOfLikes, numberOfDislikes) {
         },
         body: JSON.stringify(payload)
     })
-    .then(response => {
-        if (!response.ok) {
-            return response.text().then(text => {
-                throw new Error(`Failed to update post: ${text}`);
-            });
-        }
-        return response.json();
-    })
+    .then(response => handleResponse(response))
     .then(updatedPost => {
-        console.log('Post updated successfully:', updatedPost);
+        console.log('✅ Post updated successfully:', updatedPost);
         closeCreateModal();
         loadPosts();
-        showNotification('Post updated successfully! ✏️');
+        showAlert('🎉 Post updated successfully!', 'success');
     })
     .catch(error => {
-        console.error('Error updating post:', error);
-        showErrorMessage(`Failed to update post: ${error.message}`);
+        console.error('❌ Error updating post:', error);
+        showFormError(`❌ Failed to update post: ${error.message}`);
+    })
+    .finally(() => {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('loading');
     });
 }
 
 // Logout
 function logout() {
-    if (confirm('Are you sure you want to logout?')) {
+    if (confirm('🚪 Are you sure you want to logout?')) {
         localStorage.removeItem('authToken');
         localStorage.removeItem('currentUser');
         sessionStorage.removeItem('authToken');
         currentUser = null;
+        showAlert('✅ Logged out successfully', 'success');
         // Redirect to login page or main page
-        window.location.href = '/login';
+        setTimeout(() => {
+            window.location.href = '/login';
+        }, 1000);
     }
 }
 
@@ -499,42 +543,68 @@ function showErrorMessage(message) {
     errorDiv.classList.remove('hidden');
 }
 
+// Hide error message
 function hideErrorMessage() {
     document.getElementById('errorMessage').classList.add('hidden');
 }
 
-function showNotification(message) {
-    // Simple notification (you can enhance this with a proper notification library)
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: #2ecc71;
-        color: white;
-        padding: 15px 20px;
-        border-radius: 6px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 2000;
-        animation: slideIn 0.3s ease;
+// Show form error in modal
+function showFormError(message) {
+    const formError = document.getElementById('formError');
+    formError.innerHTML = `
+        <span>${escapeHtml(message)}</span>
+        <span class="form-error-close" onclick="clearFormError()" title="Close">&times;</span>
     `;
-    notification.textContent = message;
-    document.body.appendChild(notification);
+    formError.classList.remove('hidden');
+}
 
+// Clear form error
+function clearFormError() {
+    const formError = document.getElementById('formError');
+    formError.classList.add('hidden');
+}
+
+// Show alert notification (top-right corner)
+function showAlert(message, type = 'info') {
+    const alertContainer = document.getElementById('alertContainer');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type}`;
+    alert.innerHTML = `
+        <span>${escapeHtml(message)}</span>
+        <span class="alert-close" onclick="this.parentElement.remove()">&times;</span>
+    `;
+    
+    alertContainer.appendChild(alert);
+    
+    // Auto-remove after 5 seconds
     setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+        if (alert.parentElement) {
+            alert.classList.add('removing');
+            setTimeout(() => alert.remove(), 300);
+        }
+    }, 5000);
 }
 
+// ============================================
+// FORMAT UTILITIES
+// ============================================
+
+// Format date
 function formatDate(dateString) {
-    const options = { year: 'numeric', month: 'short', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString('en-US', options);
+    if (!dateString) return 'Unknown';
+    try {
+        const options = { year: 'numeric', month: 'short', day: 'numeric' };
+        return new Date(dateString).toLocaleDateString('en-US', options);
+    } catch (e) {
+        console.error('Error formatting date:', e);
+        return dateString;
+    }
 }
 
+// Escape HTML special characters (XSS prevention)
 function escapeHtml(unsafe) {
     if (!unsafe) return '';
-    return unsafe
+    return String(unsafe)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')

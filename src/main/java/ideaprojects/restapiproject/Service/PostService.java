@@ -5,9 +5,13 @@ import ideaprojects.restapiproject.entity.DTO.PostDTO;
 import ideaprojects.restapiproject.entity.DTO.request.CreatePostRequest;
 import ideaprojects.restapiproject.entity.DTO.request.UpdatePostRequest;
 import ideaprojects.restapiproject.entity.Post;
+import ideaprojects.restapiproject.entity.User;
 import ideaprojects.restapiproject.repository.PostRepository;
+import ideaprojects.restapiproject.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -20,10 +24,12 @@ import java.util.stream.Collectors;
 @Transactional
 public class PostService {
     private final PostRepository postRepository;
+    private final UserRepository userRepository;
 
     @Autowired
-    public PostService(PostRepository postRepository) {
+    public PostService(PostRepository postRepository, UserRepository userRepository) {
         this.postRepository = postRepository;
+        this.userRepository = userRepository;
     }
 
     public PostContainerDTO findAll(){
@@ -42,14 +48,25 @@ public class PostService {
 
 
     public PostDTO save(CreatePostRequest createPostRequest){
-        Post post = createPostRequest.toEntity();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String email = authentication.getName();
+
+        User author = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        Post post = createPostRequest.toEntity(author);
         return postRepository.save(post).toDTO();
     }
-
     public PostDTO update(UpdatePostRequest updatePostRequest, int id){
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String email = authentication.getName();
+
+        User author = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
         return postRepository.findById(id)
                 .map(post -> {
-                    Post updatedPost = updatePostRequest.toEntity(post.getId(), post.getAuthor(), post.getCreatedDate());
+                    Post updatedPost = updatePostRequest.toEntity(post.getId(), post.getCreatedDate(), author);
                     return postRepository.save(updatedPost).toDTO();
                 })
                 .orElseThrow(() -> new IllegalArgumentException("Post with id = " + id + " not found"));

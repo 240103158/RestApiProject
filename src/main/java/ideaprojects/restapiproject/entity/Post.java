@@ -6,6 +6,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
@@ -19,8 +21,9 @@ public class Post {
     @Column(name = "id")
     private int id;
 
-    @Column(name = "author", nullable = false, length = 20)
-    private String author;
+    @ManyToOne
+    @JoinColumn(name="author_id", nullable = false)
+    private User author;
 
     @Column(name = "title", nullable = false, length = 100)
     private String title;
@@ -38,7 +41,7 @@ public class Post {
     public Post() {
     }
 
-    public Post(int id, String author, String title, LocalDateTime createdDate, int numberOfLikes, int numberOfDislikes) {
+    public Post(int id, User author, String title, LocalDateTime createdDate, int numberOfLikes, int numberOfDislikes) {
         this.id = id;
         this.author = author;
         this.title = title;
@@ -47,7 +50,8 @@ public class Post {
         this.numberOfDislikes = numberOfDislikes;
     }
 
-    public Post(String author, String title, LocalDateTime createdDate, int numberOfLikes, int numberOfDislikes) {
+
+    public Post(User author, String title, LocalDateTime createdDate, int numberOfLikes, int numberOfDislikes) {
         this.author = author;
         this.title = title;
         this.createdDate = createdDate;
@@ -55,7 +59,9 @@ public class Post {
         this.numberOfDislikes = numberOfDislikes;
     }
 
-    public void setAuthor(String author) {
+
+
+    public void setAuthor(User author) {
         this.author = author;
     }
 
@@ -79,7 +85,7 @@ public class Post {
         return id;
     }
 
-    public String getAuthor() {
+    public User getAuthor() {
         return author;
     }
 
@@ -102,7 +108,7 @@ public class Post {
     public PostDTO toDTO(){
                     return  new PostDTO(
                             this.id,
-                            this.author,
+                            this.author.getName(),
                             this.title,
                             this.createdDate.toLocalDate(),
                             this.numberOfLikes,

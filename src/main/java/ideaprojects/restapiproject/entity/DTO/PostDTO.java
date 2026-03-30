@@ -1,5 +1,7 @@
 package ideaprojects.restapiproject.entity.DTO;
 
+import ideaprojects.restapiproject.entity.User;
+
 import java.time.LocalDate;
 
 public class PostDTO {

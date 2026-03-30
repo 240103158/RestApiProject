@@ -1,6 +1,7 @@
 package ideaprojects.restapiproject.entity.DTO.request;
 
 import ideaprojects.restapiproject.entity.Post;
+import ideaprojects.restapiproject.entity.User;
 
 import java.time.LocalDateTime;
 
@@ -27,9 +28,8 @@ public class UpdatePostRequest {
         return numberOfDislikes;
     }
 
-    public Post toEntity(int id, String author, LocalDateTime createdDate){
+    public Post toEntity(int id,  LocalDateTime createdDate, User author){
         return new Post(
-                 id,
                 author,
                 title,
                 createdDate,

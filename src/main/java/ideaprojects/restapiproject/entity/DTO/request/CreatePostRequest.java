@@ -1,20 +1,19 @@
 package ideaprojects.restapiproject.entity.DTO.request;
 
 import ideaprojects.restapiproject.entity.Post;
+import ideaprojects.restapiproject.entity.User;
 
 import java.time.LocalDateTime;
 
 public class CreatePostRequest {
-    private String author;
     private String title;
 
-    public CreatePostRequest(String author, String title) {
-        this.author = author;
+    public CreatePostRequest( String title) {
         this.title = title;
     }
 
-    public Post toEntity(){
-        return   new Post(
+    public Post toEntity(User author){
+        return  new Post(
                 author,
                 title,
                 LocalDateTime.now(),

@@ -3,6 +3,13 @@ GET http://localhost:8080/api/posts
 ###
 GET http://localhost:8080/api/posts/6
 
+POST http://localhost:8080/posts
+Content-Type: application/json
+
+{
+  "title": "My first post"
+}
+
 ###
 POST http://localhost:8080/api/posts
 Content-Type: application/json

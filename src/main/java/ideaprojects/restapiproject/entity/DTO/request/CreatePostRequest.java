@@ -8,7 +8,10 @@ import java.time.LocalDateTime;
 public class CreatePostRequest {
     private String title;
 
-    public CreatePostRequest( String title) {
+    public CreatePostRequest() {
+    }
+
+    public CreatePostRequest(String title) {
         this.title = title;
     }
 
@@ -20,5 +23,13 @@ public class CreatePostRequest {
                 0,
                 0
         );
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 }

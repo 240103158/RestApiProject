@@ -10,9 +10,17 @@ let currentUser = null;
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 App initialized');
+
     checkAuthentication();
-    loadPosts();
-    setupEventListeners();
+
+    if (document.getElementById('postsContainer')) {
+        loadPosts();
+        setupEventListeners();
+    }
+
+    if (document.getElementById('loginPanel')) {
+        initLoginPage();
+    }
 });
 
 // Setup Event Listeners
@@ -638,4 +646,122 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+
+function initLoginPage() {
+    console.log('🔐 Login page initialized');
+
+    const loginForm = document.getElementById('loginPanel');
+    const registerForm = document.getElementById('registerPanel');
+
+    const loginBtn = document.getElementById('loginBtn');
+    const registerBtn = document.getElementById('registerBtn');
+
+    // LOGIN
+    if (loginForm) {
+        loginForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!email || !password) {
+                showLoginError('Please fill all fields');
+                return;
+            }
+
+            loginBtn.classList.add('loading');
+
+            fetch(`${API_BASE_URL}/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            })
+                .then(response => handleResponse(response))
+                .then(data => {
+                    console.log('✅ Login success', data);
+
+                    // сохраняем токен
+                    if (data.token) {
+                        localStorage.setItem('authToken', data.token);
+                    }
+
+                    if (data.user) {
+                        localStorage.setItem('currentUser', data.user.name);
+                    }
+
+                    showAlert('Login successful', 'success');
+
+                    setTimeout(() => {
+                        window.location.href = '/api/home';
+                    }, 800);
+                })
+                .catch(err => {
+                    console.error(err);
+                    showLoginError(err.message || 'Login failed');
+                })
+                .finally(() => {
+                    loginBtn.classList.remove('loading');
+                });
+        });
+    }
+
+    // REGISTER
+    if (registerForm) {
+        registerForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const name = document.getElementById('regName').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+
+            if (!name || !email || !password) {
+                showRegisterError('Please fill all fields');
+                return;
+            }
+
+            registerBtn.classList.add('loading');
+
+            fetch(`${API_BASE_URL}/registration`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, email, password })
+            })
+                .then(response => handleResponse(response))
+                .then(data => {
+                    console.log('✅ Register success', data);
+
+                    showAlert('Account created!', 'success');
+                    switchTab('login');
+                })
+                .catch(err => {
+                    console.error(err);
+                    showRegisterError(err.message || 'Registration failed');
+                })
+                .finally(() => {
+                    registerBtn.classList.remove('loading');
+                });
+        });
+    }
+}
+
+function showLoginError(msg) {
+    const el = document.getElementById('loginError');
+    const text = document.getElementById('loginErrorText');
+
+    text.textContent = msg;
+    el.classList.remove('hidden');
+}
+
+function showRegisterError(msg) {
+    const el = document.getElementById('registerError');
+    const text = document.getElementById('registerErrorText');
+
+    text.textContent = msg;
+    el.classList.remove('hidden');
+}
 

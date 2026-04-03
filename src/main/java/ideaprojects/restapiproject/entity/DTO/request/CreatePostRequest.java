@@ -12,6 +12,10 @@ public class CreatePostRequest {
         this.title = title;
     }
 
+
+//    public CreatePostRequest() {
+//    }
+
     public Post toEntity(User author){
         return  new Post(
                 author,
@@ -21,4 +25,12 @@ public class CreatePostRequest {
                 0
         );
     }
+
+    public String getTitle() {
+        return title;
+    }
+
+//    public void setTitle(String title) {
+//        this.title = title;
+//    }
 }

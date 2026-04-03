@@ -16,6 +16,9 @@ public class UpdatePostRequest {
         this.numberOfDislikes = numberOfDislikes;
     }
 
+    public UpdatePostRequest() {
+    }
+
     public String getTitle() {
         return title;
     }

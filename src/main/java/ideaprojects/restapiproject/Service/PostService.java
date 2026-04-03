@@ -64,12 +64,16 @@ public class PostService {
         User author = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        return postRepository.findById(id)
-                .map(post -> {
-                    Post updatedPost = updatePostRequest.toEntity(post.getId(), post.getCreatedDate(), author);
-                    return postRepository.save(updatedPost).toDTO();
-                })
-                .orElseThrow(() -> new IllegalArgumentException("Post with id = " + id + " not found"));
+        Post post = postRepository.findById(id)
+                .orElseThrow(() ->new IllegalArgumentException("Post not found with id: "+ id));
+
+        post.setTitle(updatePostRequest.getTitle());
+        post.setAuthor(author);
+        post.setCreatedDate(post.getCreatedDate());
+        post.setNumberOfDislikes(updatePostRequest.getNumberOfDislikes());
+        post.setNumberOfLikes(updatePostRequest.getNumberOfLikes());
+
+        return postRepository.save(post).toDTO();
     }
 
     public void delete(int id){

@@ -13,9 +13,6 @@ public class CreatePostRequest {
     }
 
 
-//    public CreatePostRequest() {
-//    }
-
     public Post toEntity(User author){
         return  new Post(
                 author,
@@ -30,7 +27,4 @@ public class CreatePostRequest {
         return title;
     }
 
-//    public void setTitle(String title) {
-//        this.title = title;
-//    }
 }

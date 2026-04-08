@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blog — Posts</title>
+    <meta name="current-user" th:content="${username}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
     <style>
@@ -615,7 +616,7 @@
         <div class="header-right">
             <div class="user-pill">
                 <div class="user-avatar" id="userAvatar">?</div>
-                <span id="userNameDisplay">Loading…</span>
+                <span id="userNameDisplay"></span>
             </div>
             <button class="btn btn-ghost" onclick="logout()">Sign out</button>
         </div>
@@ -753,31 +754,16 @@
     // ── CURRENT USER ──
     // Fetch the logged-in user's info from backend (email resolved via Spring Security)
     function loadCurrentUser() {
-        fetch(`${API}/me`, {
-            headers: { 'Authorization': getAuthHeader() }
-        })
-            .then(r => r.ok ? r.json() : null)
-            .then(user => {
-                if (user) {
-                    currentUser = user;
-                    const name = user.name || user.email || 'User';
-                    document.getElementById('userNameDisplay').textContent = name;
-                    document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
-                }
-            })
-            .catch(() => {
-                // If /api/me not available, try to read from meta tag set by Thymeleaf:
-                // <meta name="current-user" th:content="${#authentication.name}">
-                const meta = document.querySelector('meta[name="current-user"]');
-                if (meta) {
-                    currentUser = { email: meta.content, name: meta.content };
-                    const name = meta.content;
-                    document.getElementById('userNameDisplay').textContent = name;
-                    document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
-                } else {
-                    document.getElementById('userNameDisplay').textContent = 'Signed in';
-                }
-            });
+        function loadCurrentUser() {
+            const meta = document.querySelector('meta[name="current-user"]');
+            if (meta && meta.content) {
+                currentUser = { name: meta.content, email: meta.content };
+                document.getElementById('userNameDisplay').textContent = meta.content;
+                document.getElementById('userAvatar').textContent = meta.content.charAt(0).toUpperCase();
+            } else {
+                document.getElementById('userNameDisplay').textContent = 'Sign in';
+            }
+        }
     }
 
     // ── POSTS ──
@@ -824,7 +810,7 @@
                             <span class="post-author-dot">${initials}</span>
                             <span>${escHtml(post.author)}</span>
                             <span class="meta-sep">·</span>
-                            <span>${fmtDate(post.createDate)}</span>
+                            <span>${fmtDate(post.createdDate)}</span>
                         </div>
                     </div>
                     <div class="post-card-footer">

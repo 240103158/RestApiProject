@@ -8,15 +8,15 @@ public class PostDTO {
     private int id;
     private String author;
     private String title;
-    private LocalDate createDate;
+    private LocalDate createdDate;
     private int numberOfLikes;
     private int numberOfDislikes;
 
-    public PostDTO(int id, String author, String title, LocalDate createDate, int numberOfLikes, int numberOfDislikes) {
+    public PostDTO(int id, String author, String title, LocalDate createdDate, int numberOfLikes, int numberOfDislikes) {
         this.id = id;
         this.author = author;
         this.title = title;
-        this.createDate = createDate;
+        this.createdDate = createdDate;
         this.numberOfLikes = numberOfLikes;
         this.numberOfDislikes = numberOfDislikes;
     }
@@ -33,8 +33,8 @@ public class PostDTO {
         return title;
     }
 
-    public LocalDate getCreateDate() {
-        return createDate;
+    public LocalDate getCreatedDate() {
+        return createdDate;
     }
 
     public int getNumberOfLikes() {

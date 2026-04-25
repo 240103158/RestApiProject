@@ -1,641 +1,441 @@
-// API Configuration
-const API_BASE_URL = '/api';
+const API = '/api';
 let allPosts = [];
-let currentViewingPostId = null;
+let currentViewingId = null;
+let pendingDeleteId = null;
 let isEditMode = false;
-let editingPostId = null;
+let editingId = null;
 let currentUser = null;
 
-
-// Initialize on page load
+// ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 App initialized');
-    checkAuthentication();
+    loadCurrentUser();
+
+    if (!currentUser) {
+        renderGuestState();
+        return;
+    }
+
     loadPosts();
-    setupEventListeners();
+
+    document.getElementById('searchInput').addEventListener('input', e => {
+        filterPosts(e.target.value);
+    });
+
+    document.getElementById('createModal').addEventListener('click', e => {
+        if (e.target.id === 'createModal') closeCreateModal();
+    });
+    document.getElementById('viewModal').addEventListener('click', e => {
+        if (e.target.id === 'viewModal') closeViewModal();
+    });
+    document.getElementById('confirmModal').addEventListener('click', e => {
+        if (e.target.id === 'confirmModal') closeConfirmModal();
+    });
+
+    document.getElementById('postTitleInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') submitPost();
+    });
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
+        if (pendingDeleteId != null) executeDelete(pendingDeleteId);
+    });
 });
 
-// Setup Event Listeners
-function setupEventListeners() {
-    // Search functionality
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-        filterAndDisplayPosts(e.target.value);
-    });
-
-    // Form submission
-    document.getElementById('postForm').addEventListener('submit', (e) => {
-        e.preventDefault();
-        submitPost();
-    });
-
-    // Close modal on outside click
-    document.getElementById('postModal').addEventListener('click', (e) => {
-        if (e.target.id === 'postModal') {
-            closeCreateModal();
-        }
-    });
-
-    document.getElementById('viewModal').addEventListener('click', (e) => {
-        if (e.target.id === 'viewModal') {
-            closeViewModal();
-        }
-    });
-}
-
-// Check if user is authenticated
-function checkAuthentication() {
-    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-    currentUser = localStorage.getItem('currentUser');
-    
-    if (!token) {
-        console.log('ℹ️ No authentication token found - user not authenticated');
+// ── CURRENT USER ──
+function loadCurrentUser() {
+    const meta = document.querySelector('meta[name="current-user"]');
+    if (meta && meta.content && meta.content.trim() !== '') {
+        currentUser = { name: meta.content, email: meta.content };
+        document.getElementById('userNameDisplay').textContent = meta.content;
+        document.getElementById('userAvatar').textContent = meta.content.charAt(0).toUpperCase();
     } else {
-        console.log('✅ User authenticated:', currentUser);
-    }
-}
-
-
-// Handle API Response - Process exceptions from GlobalExceptionHandler
-function handleResponse(response) {
-    // If response is not ok, try to parse error from GlobalExceptionHandler
-    if (!response.ok) {
-        return response.json().then(errorData => {
-            // GlobalExceptionHandler returns: { status: number, message: string }
-            const errorMessage = errorData.message || `HTTP Error ${response.status}`;
-            const error = new Error(errorMessage);
-            error.status = errorData.status || response.status;
-            throw error;
-        }).catch(jsonError => {
-            // If JSON parsing fails, use generic error
-            const error = new Error(`HTTP Error ${response.status}: ${response.statusText}`);
-            error.status = response.status;
-            throw error;
-        });
-    }
-    return response.json();
-}
-
-// Load posts from API
-function loadPosts() {
-    showLoadingSpinner();
-    hideErrorMessage();
-
-    fetch(`${API_BASE_URL}/posts`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': getAuthHeader()
+        currentUser = null;
+        document.getElementById('userNameDisplay').textContent = 'Guest';
+        document.getElementById('userAvatar').textContent = '?';
+        // swap Sign out → Sign in link
+        const signOutBtn = document.querySelector('.btn-ghost[onclick="logout()"]');
+        if (signOutBtn) {
+            signOutBtn.textContent = 'Sign in';
+            signOutBtn.removeAttribute('onclick');
+            signOutBtn.addEventListener('click', () => { window.location.href = '/api/login'; });
         }
+        // hide New Post button
+        const newPostBtn = document.querySelector('.btn-primary[onclick="openCreateModal()"]');
+        if (newPostBtn) newPostBtn.style.display = 'none';
+    }
+}
+
+// ── GUEST STATE ──
+function renderGuestState() {
+    document.getElementById('postCount').textContent = '';
+    document.getElementById('postsGrid').innerHTML = `
+        <div class="state-box" style="gap:20px;padding:60px 32px;">
+            <div style="font-size:52px;">👋</div>
+            <div class="state-title">Welcome to The Blog</div>
+            <p class="state-sub" style="max-width:380px;">
+                Sign in to read posts, write your own, like or dislike others, and manage your content.
+            </p>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px;">
+                <a href="/api/login" class="btn btn-primary">
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                        <path d="M8.5 2.5h2a1 1 0 011 1v6a1 1 0 01-1 1h-2M5.5 9.5l3-3-3-3M8.5 6.5H1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Sign In
+                </a>
+                <a href="/api/registration" class="btn btn-ghost">Create Account</a>
+            </div>
+
+            <div style="width:100%;max-width:480px;margin-top:12px;border:1.5px solid var(--border);border-radius:12px;overflow:hidden;">
+                <div style="background:var(--accent-lt);border-bottom:1.5px solid #c7d2fe;padding:12px 20px;">
+                    <span style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);">How it works</span>
+                </div>
+                <div style="padding:0;">
+                    ${[
+                        ['✍️', 'Create an account', 'Sign up with your name, email and password.'],
+                        ['📝', 'Write a post',       'Give your post a title and publish instantly.'],
+                        ['👍', 'React to posts',     'Like or dislike any post you read.'],
+                        ['🗑️', 'Manage your posts',  'Edit or delete posts you own at any time.'],
+                    ].map(([icon, title, desc], i, arr) => `
+                        <div style="display:flex;align-items:flex-start;gap:14px;padding:16px 20px;${i < arr.length-1 ? 'border-bottom:1px solid var(--border);' : ''}">
+                            <span style="font-size:20px;flex-shrink:0;margin-top:1px;">${icon}</span>
+                            <div>
+                                <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px;">${title}</div>
+                                <div style="font-size:12.5px;color:var(--ink-3);line-height:1.5;">${desc}</div>
+                            </div>
+                        </div>`).join('')}
+                </div>
+            </div>
+        </div>`;
+}
+
+// ── POSTS ──
+function loadPosts() {
+    document.getElementById('postsGrid').innerHTML = `
+        <div class="state-box">
+            <div class="spinner"></div>
+            <p class="state-sub">Loading posts…</p>
+        </div>`;
+
+    fetch(`${API}/posts`, {
+        headers: { 'Content-Type': 'application/json', 'Authorization': getAuthHeader() }
     })
-    .then(response => handleResponse(response))
+    .then(r => handleResponse(r))
     .then(data => {
-        console.log('✅ Posts loaded successfully:', data);
-        allPosts = data.posts || [];
-        displayPosts(allPosts);
-        hideLoadingSpinner();
-        hideErrorMessage();
+        allPosts = data.posts || data || [];
+        renderPosts(allPosts);
     })
-    .catch(error => {
-        console.error('❌ Error loading posts:', error);
-        hideLoadingSpinner();
-        showErrorMessage(error.message || 'Failed to load posts. Please try again later.');
-        showEmptyState();
-    });
+    .catch(err => renderError(err.message || 'Failed to load posts.'));
 }
 
-// Display posts in the grid
-function displayPosts(posts) {
-    const postsContainer = document.getElementById('postsContainer');
-    
+function renderPosts(posts) {
+    const grid = document.getElementById('postsGrid');
+
     if (!posts || posts.length === 0) {
-        showEmptyState();
-        postsContainer.innerHTML = '';
+        grid.innerHTML = `
+            <div class="state-box">
+                <div class="state-icon">📭</div>
+                <div class="state-title">No posts yet</div>
+                <p class="state-sub">Be the first to write something.</p>
+                <button class="btn btn-primary" onclick="openCreateModal()" style="margin-top:4px;">Write a post</button>
+            </div>`;
+        document.getElementById('postCount').textContent = '';
         return;
     }
 
-    hideEmptyState();
-    postsContainer.innerHTML = posts.map(post => `
-        <div class="post-card" onclick="viewPost(${post.id})">
-            <div class="post-header">
-                <h3 class="post-title">${escapeHtml(post.title)}</h3>
-                <div class="post-meta">
-                    <span class="post-author">👤 ${escapeHtml(post.author)}</span>
-                    <span class="post-date">📅 ${formatDate(post.createDate)}</span>
+    document.getElementById('postCount').textContent =
+        `${posts.length} post${posts.length !== 1 ? 's' : ''}`;
+
+    grid.innerHTML = posts.map(post => {
+        const initials = (post.author || '?').charAt(0).toUpperCase();
+        const isOwn = currentUser && (currentUser.name === post.author || currentUser.email === post.author);
+        const deleteBtn = isOwn ? `
+            <button class="card-delete-btn" onclick="promptDeletePost(${post.id}, event)" title="Delete post">
+                <svg width="14" height="14" viewBox="0 0 13 13" fill="none">
+                    <path d="M1.5 3.5h10M4.5 3.5V2.5a1 1 0 011-1h2a1 1 0 011 1v1M5.5 6v4M7.5 6v4M2.5 3.5l.7 7a1 1 0 001 .9h4.6a1 1 0 001-.9l.7-7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>` : '';
+
+        return `
+            <div class="post-card" onclick="viewPost(${post.id})">
+                ${deleteBtn}
+                <div class="post-card-accent"></div>
+                <div class="post-card-body">
+                    <h3 class="post-title">${escHtml(post.title)}</h3>
+                    <div class="post-meta">
+                        <div class="post-avatar">${initials}</div>
+                        <span class="post-author-name">${escHtml(post.author)}</span>
+                        <div class="meta-dot"></div>
+                        <span>${fmtDate(post.createdDate)}</span>
+                    </div>
                 </div>
-            </div>
-            <div class="post-footer">
-                <div class="post-stats">
-                    <span class="stat stat-like">👍 ${post.numberOfLikes}</span>
-                    <span class="stat stat-dislike">👎 ${post.numberOfDislikes}</span>
+                <div class="post-card-footer">
+                    <div class="post-reactions">
+                        <span class="reaction">👍 ${post.numberOfLikes}</span>
+                        <span class="reaction">👎 ${post.numberOfDislikes}</span>
+                    </div>
+                    <span class="post-arrow">→</span>
                 </div>
-            </div>
-        </div>
-    `).join('');
-    
-    console.log(`📊 Displayed ${posts.length} posts`);
+            </div>`;
+    }).join('');
 }
 
-// Filter and display posts based on search
-function filterAndDisplayPosts(searchTerm) {
-    if (!searchTerm.trim()) {
-        displayPosts(allPosts);
-        return;
-    }
-
-    const filteredPosts = allPosts.filter(post => {
-        const term = searchTerm.toLowerCase();
-        return post.title.toLowerCase().includes(term) ||
-               post.author.toLowerCase().includes(term);
-    });
-    
-    displayPosts(filteredPosts);
-    console.log(`🔍 Filtered to ${filteredPosts.length} posts`);
+function renderError(msg) {
+    document.getElementById('postsGrid').innerHTML = `
+        <div class="state-box">
+            <div class="state-icon">⚠️</div>
+            <div class="state-title">Something went wrong</div>
+            <p class="state-sub">${escHtml(msg)}</p>
+            <button class="btn btn-primary" onclick="loadPosts()" style="margin-top:4px;">Try again</button>
+        </div>`;
 }
 
-// Sort posts
+function filterPosts(term) {
+    if (!term.trim()) { renderPosts(allPosts); return; }
+    const t = term.toLowerCase();
+    renderPosts(allPosts.filter(p =>
+        p.title.toLowerCase().includes(t) || (p.author || '').toLowerCase().includes(t)
+    ));
+}
+
 function sortPosts() {
-    const sortType = document.getElementById('sortSelect').value;
-    let sortedPosts = [...allPosts];
-
-    switch (sortType) {
-        case 'recent':
-            sortedPosts.sort((a, b) => new Date(b.createDate) - new Date(a.createDate));
-            break;
-        case 'oldest':
-            sortedPosts.sort((a, b) => new Date(a.createDate) - new Date(b.createDate));
-            break;
-        case 'likes':
-            sortedPosts.sort((a, b) => b.numberOfLikes - a.numberOfLikes);
-            break;
-        case 'author':
-            sortedPosts.sort((a, b) => a.author.localeCompare(b.author));
-            break;
-    }
-
-    displayPosts(sortedPosts);
+    const val = document.getElementById('sortSelect').value;
+    const sorted = [...allPosts];
+    if (val === 'recent') sorted.sort((a,b) => new Date(b.createdDate) - new Date(a.createdDate));
+    if (val === 'oldest') sorted.sort((a,b) => new Date(a.createdDate) - new Date(b.createdDate));
+    if (val === 'likes')  sorted.sort((a,b) => b.numberOfLikes - a.numberOfLikes);
+    if (val === 'author') sorted.sort((a,b) => (a.author||'').localeCompare(b.author||''));
+    renderPosts(sorted);
 }
 
-// View post details
-function viewPost(postId) {
-    const post = allPosts.find(p => p.id === postId);
-    if (!post) {
-        console.error('❌ Post not found:', postId);
-        showAlert('Post not found', 'error');
-        return;
-    }
+// ── VIEW POST ──
+function viewPost(id) {
+    const post = allPosts.find(p => p.id === id);
+    if (!post) return;
+    currentViewingId = id;
 
-    currentViewingPostId = postId;
-    
-    // Populate modal
-    document.getElementById('viewTitle').textContent = post.title;
-    document.getElementById('viewAuthor').textContent = post.author;
-    document.getElementById('viewDate').textContent = `📅 Posted on ${formatDate(post.createDate)}`;
+    document.getElementById('viewPostTitle').textContent = post.title;
+    document.getElementById('viewAuthor').textContent = post.author || 'Unknown';
+    document.getElementById('viewAuthorAvatar').textContent = (post.author || '?').charAt(0).toUpperCase();
+    document.getElementById('viewDate').textContent = fmtDate(post.createdDate);
     document.getElementById('viewLikes').textContent = post.numberOfLikes;
     document.getElementById('viewDislikes').textContent = post.numberOfDislikes;
 
-    // Show/hide edit and delete buttons based on ownership
-    const isOwnPost = currentUser === post.author;
-    document.getElementById('editBtn').style.display = isOwnPost ? 'inline-flex' : 'none';
-    document.getElementById('deleteBtn').style.display = isOwnPost ? 'inline-flex' : 'none';
+    const isOwn = currentUser && (currentUser.name === post.author || currentUser.email === post.author);
+    document.getElementById('editBtn').style.display   = isOwn ? 'inline-flex' : 'none';
+    document.getElementById('deleteBtn').style.display = isOwn ? 'inline-flex' : 'none';
 
     document.getElementById('viewModal').classList.remove('hidden');
-    console.log('👁️ Viewing post:', postId);
 }
 
-// Close view modal
 function closeViewModal() {
     document.getElementById('viewModal').classList.add('hidden');
-    currentViewingPostId = null;
+    currentViewingId = null;
 }
 
-// Like post
+// ── LIKE / DISLIKE ──
 function likePost() {
-    if (!currentViewingPostId) {
-        showAlert('No post selected', 'error');
-        return;
-    }
-
-    const post = allPosts.find(p => p.id === currentViewingPostId);
-    if (!post) {
-        showAlert('Post not found', 'error');
-        return;
-    }
-
-    const newLikes = post.numberOfLikes + 1;
-    const payload = {
-        title: post.title,
-        numberOfLikes: newLikes,
-        numberOfDislikes: post.numberOfDislikes
-    };
-
-    fetch(`${API_BASE_URL}/posts/${currentViewingPostId}`, {
-        method: 'PUT',
-        headers: {
-            'Authorization': getAuthHeader(),
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-    })
-    .then(response => handleResponse(response))
-    .then(updatedPost => {
-        post.numberOfLikes = newLikes;
-        document.getElementById('viewLikes').textContent = newLikes;
-        showAlert('Post liked! 👍', 'success');
-        console.log('👍 Post liked successfully');
-    })
-    .catch(error => {
-        console.error('❌ Error liking post:', error);
-        showAlert(`Failed to like post: ${error.message}`, 'error');
-    });
+    const post = allPosts.find(p => p.id === currentViewingId);
+    if (!post) return;
+    patchReactions(post, post.numberOfLikes + 1, post.numberOfDislikes);
 }
 
-// Dislike post
 function dislikePost() {
-    if (!currentViewingPostId) {
-        showAlert('No post selected', 'error');
-        return;
-    }
+    const post = allPosts.find(p => p.id === currentViewingId);
+    if (!post) return;
+    patchReactions(post, post.numberOfLikes, post.numberOfDislikes + 1);
+}
 
-    const post = allPosts.find(p => p.id === currentViewingPostId);
-    if (!post) {
-        showAlert('Post not found', 'error');
-        return;
-    }
-
-    const newDislikes = post.numberOfDislikes + 1;
-    const payload = {
-        title: post.title,
-        numberOfLikes: post.numberOfLikes,
-        numberOfDislikes: newDislikes
-    };
-
-    fetch(`${API_BASE_URL}/posts/${currentViewingPostId}`, {
+function patchReactions(post, likes, dislikes) {
+    fetch(`${API}/posts/${post.id}`, {
         method: 'PUT',
-        headers: {
-            'Authorization': getAuthHeader(),
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Authorization': getAuthHeader(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: post.title, numberOfLikes: likes, numberOfDislikes: dislikes })
     })
-    .then(response => handleResponse(response))
-    .then(updatedPost => {
-        post.numberOfDislikes = newDislikes;
-        document.getElementById('viewDislikes').textContent = newDislikes;
-        showAlert('Post disliked! 👎', 'success');
-        console.log('👎 Post disliked successfully');
-    })
-    .catch(error => {
-        console.error('❌ Error disliking post:', error);
-        showAlert(`Failed to dislike post: ${error.message}`, 'error');
-    });
-}
-
-// Edit post
-function editPost() {
-    const post = allPosts.find(p => p.id === currentViewingPostId);
-    if (!post) {
-        showAlert('Post not found', 'error');
-        return;
-    }
-
-    isEditMode = true;
-    editingPostId = currentViewingPostId;
-
-    document.getElementById('modalTitle').textContent = '✏️ Edit Post';
-    document.getElementById('author').value = post.author;
-    document.getElementById('title').value = post.title;
-    
-    document.getElementById('author').disabled = true;
-    document.getElementById('author').style.opacity = '0.7';
-
-    closeViewModal();
-    document.getElementById('postModal').classList.remove('hidden');
-    clearFormError();
-}
-
-// Delete post
-function deletePost() {
-    if (!currentViewingPostId) {
-        showAlert('No post selected', 'error');
-        return;
-    }
-
-    if (!confirm('🗑️ Are you sure you want to delete this post? This action cannot be undone.')) {
-        return;
-    }
-
-    fetch(`${API_BASE_URL}/posts/${currentViewingPostId}`, {
-        method: 'DELETE',
-        headers: {
-            'Authorization': getAuthHeader(),
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(errorData => {
-                throw new Error(errorData.message || `HTTP Error ${response.status}`);
-            });
-        }
-        return response;
-    })
+    .then(r => handleResponse(r))
     .then(() => {
-        allPosts = allPosts.filter(p => p.id !== currentViewingPostId);
-        closeViewModal();
-        displayPosts(allPosts);
-        showAlert('Post deleted successfully! 🗑️', 'success');
-        console.log('🗑️ Post deleted');
+        post.numberOfLikes = likes;
+        post.numberOfDislikes = dislikes;
+        document.getElementById('viewLikes').textContent = likes;
+        document.getElementById('viewDislikes').textContent = dislikes;
+        showToast('Reaction saved', 'success', '👍');
     })
-    .catch(error => {
-        console.error('❌ Error deleting post:', error);
-        showAlert(`Failed to delete post: ${error.message}`, 'error');
-    });
+    .catch(err => showToast(err.message, 'error', '⚠️'));
 }
 
-// Open create modal
+// ── CREATE / EDIT ──
 function openCreateModal() {
     isEditMode = false;
-    editingPostId = null;
-    document.getElementById('modalTitle').textContent = '✏️ Create New Post';
-    document.getElementById('postForm').reset();
-    document.getElementById('author').disabled = false;
-    document.getElementById('author').style.opacity = '1';
-    clearFormError();
-    
-    // Set author from currentUser if available
-    if (currentUser) {
-        document.getElementById('author').value = currentUser;
-    }
-
-    document.getElementById('postModal').classList.remove('hidden');
+    editingId = null;
+    document.getElementById('createModalTitle').textContent = 'New Post';
+    document.getElementById('postTitleInput').value = '';
+    hideFormError();
+    document.getElementById('createModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('postTitleInput').focus(), 50);
 }
 
-// Close create modal
+function editPost() {
+    const post = allPosts.find(p => p.id === currentViewingId);
+    if (!post) return;
+    isEditMode = true;
+    editingId = currentViewingId;
+
+    document.getElementById('createModalTitle').textContent = 'Edit Post';
+    document.getElementById('postTitleInput').value = post.title;
+    hideFormError();
+
+    closeViewModal();
+    document.getElementById('createModal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('postTitleInput').focus(), 50);
+}
+
 function closeCreateModal() {
-    document.getElementById('postModal').classList.add('hidden');
-    document.getElementById('postForm').reset();
+    document.getElementById('createModal').classList.add('hidden');
     isEditMode = false;
-    editingPostId = null;
-    clearFormError();
+    editingId = null;
+    hideFormError();
 }
 
-// Submit post (create or update)
 function submitPost() {
-    const author = document.getElementById('author').value.trim();
-    const title = document.getElementById('title').value.trim();
-    const submitBtn = document.getElementById('submitBtn');
+    const title = document.getElementById('postTitleInput').value.trim();
+    const btn   = document.getElementById('createSubmitBtn');
 
-    // Client-side validation
-    let errors = [];
+    if (!title) { showFormError('Please enter a post title.'); return; }
+    if (title.length > 100) { showFormError('Title must be under 100 characters.'); return; }
 
-    if (!author || !title) {
-        errors.push('⚠️ Please fill in all fields (Author and Title)');
-    }
+    hideFormError();
+    btn.classList.add('loading');
+    btn.textContent = 'Saving…';
 
-    if (author && author.length > 20) {
-        errors.push('⚠️ Author name must be less than 20 characters');
-    }
+    const isEdit = isEditMode;
+    const id     = editingId;
 
-    if (title && title.length > 100) {
-        errors.push('⚠️ Title must be less than 100 characters');
-    }
+    const body = isEdit
+        ? (() => { const p = allPosts.find(x => x.id === id); return JSON.stringify({ title, numberOfLikes: p.numberOfLikes, numberOfDislikes: p.numberOfDislikes }); })()
+        : JSON.stringify({ title });
 
-    if (errors.length > 0) {
-        showFormError(errors.join('\n'));
-        return;
-    }
-
-    clearFormError();
-    submitBtn.disabled = true;
-    submitBtn.classList.add('loading');
-
-    if (isEditMode) {
-        const post = allPosts.find(p => p.id === editingPostId);
-        if (!post) {
-            showFormError('❌ Post not found');
-            submitBtn.disabled = false;
-            submitBtn.classList.remove('loading');
-            return;
-        }
-        updatePostTitle(editingPostId, title, post.numberOfLikes, post.numberOfDislikes, submitBtn);
-    } else {
-        createNewPost(author, title, submitBtn);
-    }
-}
-
-// Create new post
-function createNewPost(author, title, submitBtn) {
-    const payload = {
-        author: author,
-        title: title
-    };
-
-    console.log('📝 Creating post:', payload);
-
-    fetch(`${API_BASE_URL}/posts`, {
-        method: 'POST',
-        headers: {
-            'Authorization': getAuthHeader(),
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
+    fetch(`${API}/posts${isEdit ? '/'+id : ''}`, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Authorization': getAuthHeader(), 'Content-Type': 'application/json' },
+        body
     })
-    .then(response => handleResponse(response))
-    .then(newPost => {
-        console.log('✅ Post created successfully:', newPost);
+    .then(r => handleResponse(r))
+    .then(() => {
         closeCreateModal();
         loadPosts();
-        showAlert('🎉 Post created successfully!', 'success');
+        showToast(isEdit ? 'Post updated' : 'Post created!', 'success', isEdit ? '✏️' : '🎉');
     })
-    .catch(error => {
-        console.error('❌ Error creating post:', error);
-        showFormError(`❌ Failed to create post: ${error.message}`);
-    })
-    .finally(() => {
-        submitBtn.disabled = false;
-        submitBtn.classList.remove('loading');
-    });
+    .catch(err => showFormError(err.message))
+    .finally(() => { btn.classList.remove('loading'); btn.textContent = 'Save Post'; });
 }
 
-// Update existing post title and stats
-function updatePostTitle(postId, title, numberOfLikes, numberOfDislikes, submitBtn) {
-    const payload = {
-        title: title,
-        numberOfLikes: numberOfLikes,
-        numberOfDislikes: numberOfDislikes
-    };
-
-    console.log('📝 Updating post:', postId, payload);
-
-    fetch(`${API_BASE_URL}/posts/${postId}`, {
-        method: 'PUT',
-        headers: {
-            'Authorization': getAuthHeader(),
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-    })
-    .then(response => handleResponse(response))
-    .then(updatedPost => {
-        console.log('✅ Post updated successfully:', updatedPost);
-        closeCreateModal();
-        loadPosts();
-        showAlert('🎉 Post updated successfully!', 'success');
-    })
-    .catch(error => {
-        console.error('❌ Error updating post:', error);
-        showFormError(`❌ Failed to update post: ${error.message}`);
-    })
-    .finally(() => {
-        submitBtn.disabled = false;
-        submitBtn.classList.remove('loading');
-    });
+// ── DELETE (from view modal) ──
+function deletePost() {
+    if (!currentViewingId) return;
+    pendingDeleteId = currentViewingId;
+    closeViewModal();
+    document.getElementById('confirmModal').classList.remove('hidden');
 }
 
-// Logout
+// ── DELETE (from card) ──
+function promptDeletePost(id, event) {
+    event.stopPropagation();
+    pendingDeleteId = id;
+    document.getElementById('confirmModal').classList.remove('hidden');
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirmModal').classList.add('hidden');
+    pendingDeleteId = null;
+}
+
+function executeDelete(id) {
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.classList.add('loading');
+
+    fetch(`${API}/posts/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': getAuthHeader() }
+    })
+    .then(r => { if (!r.ok) throw new Error('Delete failed'); })
+    .then(() => {
+        allPosts = allPosts.filter(p => p.id !== id);
+        closeConfirmModal();
+        renderPosts(allPosts);
+        showToast('Post deleted', 'success', '🗑️');
+    })
+    .catch(err => {
+        closeConfirmModal();
+        showToast(err.message, 'error', '⚠️');
+    })
+    .finally(() => { btn.classList.remove('loading'); });
+}
+
+// ── LOGOUT ──
 function logout() {
-    if (confirm('🚪 Are you sure you want to logout?')) {
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('currentUser');
-        sessionStorage.removeItem('authToken');
-        currentUser = null;
-        showAlert('✅ Logged out successfully', 'success');
-        // Redirect to login page or main page
-        setTimeout(() => {
-            window.location.href = '/login';
-        }, 1000);
+    if (!confirm('Sign out?')) return;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/logout';
+    const csrfMeta = document.querySelector('meta[name="_csrf"]');
+    if (csrfMeta) {
+        const input = document.createElement('input');
+        input.type  = 'hidden';
+        input.name  = '_csrf';
+        input.value = csrfMeta.content;
+        form.appendChild(input);
     }
+    document.body.appendChild(form);
+    form.submit();
 }
 
-// Get authorization header for API calls
+// ── HELPERS ──
+function handleResponse(r) {
+    if (!r.ok) {
+        return r.json().then(d => {
+            const err = new Error(d.message || `Error ${r.status}`);
+            err.status = r.status;
+            throw err;
+        }).catch(e => { if (e.status) throw e; throw new Error(`Error ${r.status}`); });
+    }
+    const ct = r.headers.get('content-type') || '';
+    return ct.includes('application/json') ? r.json() : r.text();
+}
+
 function getAuthHeader() {
-    const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-    if (token) {
-        return `Bearer ${token}`;
-    }
-    return '';
+    const t = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+    return t ? `Bearer ${t}` : '';
 }
 
-// Utility Functions
-
-function showLoadingSpinner() {
-    document.getElementById('loadingSpinner').classList.remove('hidden');
+function showFormError(msg) {
+    document.getElementById('createFormErrorText').textContent = msg;
+    document.getElementById('createFormError').classList.remove('hidden');
 }
 
-function hideLoadingSpinner() {
-    document.getElementById('loadingSpinner').classList.add('hidden');
+function hideFormError() {
+    document.getElementById('createFormError').classList.add('hidden');
 }
 
-function showEmptyState() {
-    document.getElementById('emptyState').classList.remove('hidden');
+function showToast(msg, type = 'info', icon = 'ℹ️') {
+    const stack = document.getElementById('toastStack');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <div class="toast-icon">${icon}</div>
+        <span>${escHtml(msg)}</span>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
+    stack.appendChild(toast);
+    setTimeout(() => { if (toast.parentElement) toast.remove(); }, 4500);
 }
 
-function hideEmptyState() {
-    document.getElementById('emptyState').classList.add('hidden');
+function fmtDate(d) {
+    if (!d) return '';
+    try { return new Date(d).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' }); }
+    catch { return d; }
 }
 
-function showErrorMessage(message) {
-    const errorDiv = document.getElementById('errorMessage');
-    errorDiv.innerHTML = `
-        <span>${message}</span>
-        <span class="error-close" onclick="hideErrorMessage()">&times;</span>
-    `;
-    errorDiv.classList.remove('hidden');
+function escHtml(s) {
+    if (!s) return '';
+    return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
-
-// Hide error message
-function hideErrorMessage() {
-    document.getElementById('errorMessage').classList.add('hidden');
-}
-
-// Show form error in modal
-function showFormError(message) {
-    const formError = document.getElementById('formError');
-    formError.innerHTML = `
-        <span>${escapeHtml(message)}</span>
-        <span class="form-error-close" onclick="clearFormError()" title="Close">&times;</span>
-    `;
-    formError.classList.remove('hidden');
-}
-
-// Clear form error
-function clearFormError() {
-    const formError = document.getElementById('formError');
-    formError.classList.add('hidden');
-}
-
-// Show alert notification (top-right corner)
-function showAlert(message, type = 'info') {
-    const alertContainer = document.getElementById('alertContainer');
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type}`;
-    alert.innerHTML = `
-        <span>${escapeHtml(message)}</span>
-        <span class="alert-close" onclick="this.parentElement.remove()">&times;</span>
-    `;
-    
-    alertContainer.appendChild(alert);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-        if (alert.parentElement) {
-            alert.classList.add('removing');
-            setTimeout(() => alert.remove(), 300);
-        }
-    }, 5000);
-}
-
-// ============================================
-// FORMAT UTILITIES
-// ============================================
-
-// Format date
-function formatDate(dateString) {
-    if (!dateString) return 'Unknown';
-    try {
-        const options = { year: 'numeric', month: 'short', day: 'numeric' };
-        return new Date(dateString).toLocaleDateString('en-US', options);
-    } catch (e) {
-        console.error('Error formatting date:', e);
-        return dateString;
-    }
-}
-
-// Escape HTML special characters (XSS prevention)
-function escapeHtml(unsafe) {
-    if (!unsafe) return '';
-    return String(unsafe)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-
-// Add CSS animation styles to document
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    @keyframes slideOut {
-        from {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        to {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-    }
-`;
-document.head.appendChild(style);
-

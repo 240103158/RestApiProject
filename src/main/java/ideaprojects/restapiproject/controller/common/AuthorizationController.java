@@ -55,7 +55,11 @@ public class AuthorizationController{
 
         String encodedPassword = encoder.encode(password);
         User user = new User(name, email, encodedPassword, null, LocalDateTime.now(), UserRole.USER);
-        userService.saveUser(user);
+
+        String result = userService.saveUser(user);
+        if (!result.equals("User registered successfully")) {
+            return "redirect:/api/registration?error=true";
+        }
 
         return "redirect:/api/login";
     }

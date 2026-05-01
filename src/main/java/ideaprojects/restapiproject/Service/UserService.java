@@ -19,8 +19,12 @@ public class UserService {
         this.userRepository = userRepository;
     }
 
-    public void saveUser(User user){
+    public String saveUser(User user){
+        if(userRepository.findByEmail(user.getEmail()).isPresent()){
+            return "User with email " + user.getEmail() + " already exists";
+        }
         userRepository.save(user);
+        return "User registered successfully";
     }
 
     public User getCurrentUser(){
